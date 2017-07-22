@@ -60,10 +60,34 @@ foreach ($events as $event) {
         }
       }
 
+      // 入室
+ else if(substr($event->getText(), 4) == 'enter') {
+   // ユーザーが未入室の時
+   if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+     replyTextMessage($bot, $event->getReplyToken(), 'ルームIDを入力してください。');
+   } else {
+     replyTextMessage($bot, $event->getReplyToken(), '入室済みです。');
+   }
+ }
+
       continue;
 
     }
+    // リッチコンテンツ以外の時(ルームIDが入力された時)
+    if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+      // 入室
+      $roomId = enterRoomAndGetRoomId($event->getUserId(), $event->getText());
+      // 成功時
+      if($roomId !== PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), "ルームID" . $roomId . "に入室しました。");
+      }
+      // 失敗時
+      else {
+        replyTextMessage($bot, $event->getReplyToken(), "そのルームIDは存在しません。");
+      }
+    }
   }
+
 
   // ユーザーIDからルームIDを取得
 function getRoomIdOfUser($userId) {

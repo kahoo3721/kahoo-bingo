@@ -70,6 +70,22 @@ foreach ($events as $event) {
    }
  }
 
+ // 退室の確認ダイアログ
+  else if(substr($event->getText(), 4) == 'leave_confirm') {
+    replyConfirmTemplate($bot, $event->getReplyToken(), '本当に退出しますか？', '本当に退出しますか？',
+      new LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder('はい', 'cmd_leave'),
+      new LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder('いいえ', 'cancel'));
+  }
+  // 退室
+  else if(substr($event->getText(), 4) == 'leave') {
+    if(getRoomIdOfUser($event->getUserId()) !== PDO::PARAM_NULL) {
+      leaveRoom($event->getUserId());
+      replyTextMessage($bot, $event->getReplyToken(), '退室しました。');
+    } else {
+      replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+    }
+  }
+
       continue;
 
     }
@@ -129,6 +145,15 @@ function enterRoomAndGetRoomId($userId, $roomId) {
     return $row['roomid'];
   }
 }
+
+// 退室
+function leaveRoom($userId) {
+  $dbh = dbConnection::getConnection();
+  $sql = 'delete FROM ' . TABLE_NAME_SHEETS . ' where ? = pgp_sym_decrypt(userid, \'' . getenv('DB_ENCRYPT_PASS') . '\')';
+  $sth = $dbh->prepare($sql);
+  $sth->execute(array($userId));
+}
+
 
 
 // テキストを返信。引数はLINEBot、返信先、テキスト

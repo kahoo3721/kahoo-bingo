@@ -28,7 +28,6 @@ if(file_exists('./tmp/' . $sheetName)) {
     }
   }
 }
-
 // 保存されてなければ
 else {
   // 空のシート画像を生成

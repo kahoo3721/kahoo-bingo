@@ -213,6 +213,39 @@ function updateUserSheet($userId, $sheet) {
   $sth->execute(array(json_encode($sheet), $userId));
 }
 
+// 全てのユーザーにシートのImagemapを送信
+function pushSheetToUser($bot, $userId, $text) {
+  $dbh = dbConnection::getConnection();
+  $sql = 'select pgp_sym_decrypt(userid, \'' . getenv('DB_ENCRYPT_PASS') . '\') as userid, sheet from ' . TABLE_NAME_SHEETS . ' where roomid = ?';
+  $sth = $dbh->prepare($sql);
+  $sth->execute(array(getRoomIdOfUser($userId)));
+
+  $actionsArray = array();
+  array_push($actionsArray, new LINE\LINEBot\ImagemapActionBuilder\ImagemapMessageActionBuilder(
+    '-',
+    new LINE\LINEBot\ImagemapActionBuilder\AreaBuilder(0, 0, 1, 1)));
+
+  // ユーザー一人ひとりずつ処理
+  foreach ($sth->fetchAll() as $row) {
+    $imagemapMessageBuilder = new \LINE\LINEBot\MessageBuilder\ImagemapMessageBuilder (
+      'https://' . $_SERVER['HTTP_HOST'] .  '/sheet/' . urlencode($row['sheet']) . '/' . urlencode(json_encode(getBallsOfRoom(getRoomIdOfUser($userId)))) . '/' . uniqid(),
+      'シート',
+      new LINE\LINEBot\MessageBuilder\Imagemap\BaseSizeBuilder(1040, 1040),
+      $actionsArray
+    );
+    $builder = new \LINE\LINEBot\MessageBuilder\MultiMessageBuilder();
+    $builder->add(new \LINE\LINEBot\MessageBuilder\TextMessageBuilder($text));
+    $builder->add($imagemapMessageBuilder);
+    // ビンゴが成立している場合
+    if(getIsUserHasBingo($row["userid"])) {
+      // スタンプとテキストを追加
+      $builder->add(new \LINE\LINEBot\MessageBuilder\StickerMessageBuilder(1, 134));
+      $builder->add(new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('ビンゴだよ！名乗り出て景品をもらってね！'));
+    }
+    $bot->pushMessage($row['userid'], $builder);
+  }
+}
+
 
 // テキストを返信。引数はLINEBot、返信先、テキスト
 function replyTextMessage($bot, $replyToken, $text) {

@@ -322,6 +322,37 @@ function getBallsOfRoom($roomId) {
   }
 }
 
+// ユーザーのシートがビンゴ成立しているかを調べる
+function getIsUserHasBingo($userId) {
+  $roomId = getRoomIdOfUser($userId);
+  $balls = getBallsOfRoom($roomId);
+  $sheet = getSheetOfUser($userId);
+
+  // 既に引かれているボール一致すれば-1を代入
+  foreach($sheet as &$col) {
+    foreach($col as &$num) {
+      if(in_array($num, $balls)) {
+        $num = -1;
+      }
+    }
+  }
+
+  for($i = 0; $i < 5; $i++) {
+    // 縦か横の5マスの合計が-5ならビンゴ
+    if(array_sum($sheet[$i]) == -5 ||
+      $sheet[0][$i] + $sheet[1][$i] + $sheet[2][$i] + $sheet[3][$i] + $sheet[4][$i] == -5) {
+      return true;
+    }
+  }
+  // 斜めの合計が-5ならビンゴ
+  if($sheet[0][0] + $sheet[1][1] + $sheet[2][2] + $sheet[3][3] + $sheet[4][4] == -5 ||
+     $sheet[0][4] + $sheet[1][3] + $sheet[2][2] + $sheet[3][1] + $sheet[4][0] == -5) {
+    return true;
+  }
+
+  return false;
+}
+
 
 
 // テキストを返信。引数はLINEBot、返信先、テキスト

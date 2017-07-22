@@ -2,7 +2,7 @@
 
 // Composerでインストールしたライブラリを一括読み込み
 require_once __DIR__ . '/vendor/autoload.php';
-//テーブル名定義
+// テーブル名を定義
 define('TABLE_NAME_SHEETS', 'sheets');
 define('TABLE_NAME_ROOMS', 'rooms');
 
@@ -29,129 +29,125 @@ try {
 
 // 配列に格納された各イベントをループで処理
 foreach ($events as $event) {
-  // MessageEventクラスのインスタンスでなければ処理をスキップ
+  // MessageEvent型でなければ処理をスキップ
   if (!($event instanceof \LINE\LINEBot\Event\MessageEvent)) {
     error_log('Non message event has come');
     continue;
   }
-  // TextMessageクラスのインスタンスでなければ処理をスキップ
+  // TextMessage型でなければ処理をスキップ
   if (!($event instanceof \LINE\LINEBot\Event\MessageEvent\TextMessage)) {
     error_log('Non text message has come');
     continue;
   }
 
   // リッチコンテンツがタップされた時
-    if(substr($event->getText(), 0, 4) == 'cmd_') {
-      // ルーム作成
-      if(substr($event->getText(), 4) == 'newroom') {
-        // ユーザーが未入室の時
-        if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-          // ルームを作成し入室後ルームIDを取得
-          $roomId = createRoomAndGetRoomId($event->getUserId());
-          // ルームIDをユーザーに返信
-          replyMultiMessage($bot,
-            $event->getReplyToken(),
-            new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('ルームを作成し、入室しました。ルームIDは'),
-            new \LINE\LINEBot\MessageBuilder\TextMessageBuilder($roomId),
-            new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('です。'));
-        }
-        // 既に入室している時
-        else {
-          replyTextMessage($bot, $event->getReplyToken(), '既に入室済みです。');
-        }
+  if(substr($event->getText(), 0, 4) == 'cmd_') {
+    // ルーム作成
+    if(substr($event->getText(), 4) == 'newroom') {
+      // ユーザーが未入室の時
+      if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        // ルームを作成し入室後ルームIDを取得
+        $roomId = createRoomAndGetRoomId($event->getUserId());
+        // ルームIDをユーザーに返信
+        replyMultiMessage($bot,
+          $event->getReplyToken(),
+          new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('ルームを作成し、入室しました。ルームIDは'),
+          new \LINE\LINEBot\MessageBuilder\TextMessageBuilder($roomId),
+          new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('です。'));
       }
-
-      // 入室
- else if(substr($event->getText(), 4) == 'enter') {
-   // ユーザーが未入室の時
-   if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-     replyTextMessage($bot, $event->getReplyToken(), 'ルームIDを入力してください。');
-   } else {
-     replyTextMessage($bot, $event->getReplyToken(), '入室済みです。');
-   }
- }
-
- // 退室の確認ダイアログ
-  else if(substr($event->getText(), 4) == 'leave_confirm') {
-    replyConfirmTemplate($bot, $event->getReplyToken(), '本当に退出しますか？', '本当に退出しますか？',
-      new LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder('はい', 'cmd_leave'),
-      new LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder('いいえ', 'cancel'));
-  }
-  // 退室
-  else if(substr($event->getText(), 4) == 'leave') {
-    if(getRoomIdOfUser($event->getUserId()) !== PDO::PARAM_NULL) {
-      leaveRoom($event->getUserId());
-      replyTextMessage($bot, $event->getReplyToken(), '退室しました。');
-    } else {
-      replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
-    }
-  }
-
-  // ルームでのビンゴをスタート
-  else if(substr($event->getText(), 4) == 'start') {
-    if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-      replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
-    } else if(getSheetOfUser($event->getUserId()) != PDO::PARAM_NULL) {
-      replyTextMessage($bot, $event->getReplyToken(), '既に配布されています。');
-    } else {
-      // シートを準備
-      prepareSheets($bot, $event->getUserId());
-    }
-  }
-
-  // ビンゴのボールを一個引く
- else if(substr($event->getText(), 4) == 'proceed') {
-   if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-     replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
-   } else if(getSheetOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-     replyTextMessage($bot, $event->getReplyToken(), 'シートが配布されていません。まずビンゴ開始を押してください。');
-   } else {
-     // ユーザーがそのルームでビンゴを開始したユーザーでない場合
-     if(getHostOfRoom(getRoomIdOfUser($event->getUserId())) != $event->getUserId()) {
-       replyTextMessage($bot, $event->getReplyToken(), '進行ができるのはゲームを開始したユーザーのみです。');
-     } else {
-       // ボールを引く
-       proceedBingo($bot, $event->getUserId());
-     }
-   }
- }
- // ビンゴを終了確認ダイアログ
-   else if(substr($event->getText(), 4) == 'end_confirm') {
-     if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-       replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
-     } else {
-       if(getHostOfRoom(getRoomIdOfUser($event->getUserId())) != $event->getUserId()) {
-         replyTextMessage($bot, $event->getReplyToken(), '終了ができるのはゲームを開始したユーザーのみです。');
-       } else {
-         replyConfirmTemplate($bot, $event->getReplyToken(), '本当に終了しますか？データは全て失われます。', '本当に終了しますか？データは全て失われます。',
-           new LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder('はい', 'cmd_end'),
-           new LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder('いいえ', 'cancel'));
-       }
-     }
-   }
-   // 終了
-   else if(substr($event->getText(), 4) == 'end') {
-     endBingo($bot, $event->getUserId());
-   }
-      continue;
-    }
-    // リッチコンテンツ以外の時(ルームIDが入力された時)
-    if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
-      // 入室
-      $roomId = enterRoomAndGetRoomId($event->getUserId(), $event->getText());
-      // 成功時
-      if($roomId !== PDO::PARAM_NULL) {
-        replyTextMessage($bot, $event->getReplyToken(), "ルームID" . $roomId . "に入室しました。");
-      }
-      // 失敗時
+      // 既に入室している時
       else {
-        replyTextMessage($bot, $event->getReplyToken(), "そのルームIDは存在しません。");
+        replyTextMessage($bot, $event->getReplyToken(), '既に入室済みです。');
       }
     }
+    // 入室
+    else if(substr($event->getText(), 4) == 'enter') {
+      // ユーザーが未入室の時
+      if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), 'ルームIDを入力してください。');
+      } else {
+        replyTextMessage($bot, $event->getReplyToken(), '入室済みです。');
+      }
+    }
+    // 退室の確認ダイアログ
+    else if(substr($event->getText(), 4) == 'leave_confirm') {
+      replyConfirmTemplate($bot, $event->getReplyToken(), '本当に退出しますか？', '本当に退出しますか？',
+        new LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder('はい', 'cmd_leave'),
+        new LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder('いいえ', 'cancel'));
+    }
+    // 退室
+    else if(substr($event->getText(), 4) == 'leave') {
+      if(getRoomIdOfUser($event->getUserId()) !== PDO::PARAM_NULL) {
+        leaveRoom($event->getUserId());
+        replyTextMessage($bot, $event->getReplyToken(), '退室しました。');
+      } else {
+        replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+      }
+    }
+    // ルームでのビンゴをスタート
+    else if(substr($event->getText(), 4) == 'start') {
+      if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+      } else if(getSheetOfUser($event->getUserId()) != PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), '既に配布されています。');
+      } else {
+        // シートを準備
+        prepareSheets($bot, $event->getUserId());
+      }
+    }
+    // ビンゴのボールを一個引く
+    else if(substr($event->getText(), 4) == 'proceed') {
+      if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+      } else if(getSheetOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), 'シートが配布されていません。まずビンゴ開始を押してください。');
+      } else {
+        // ユーザーがそのルームでビンゴを開始したユーザーでない場合
+        if(getHostOfRoom(getRoomIdOfUser($event->getUserId())) != $event->getUserId()) {
+          replyTextMessage($bot, $event->getReplyToken(), '進行ができるのはゲームを開始したユーザーのみです。');
+        } else {
+          // ボールを引く
+          proceedBingo($bot, $event->getUserId());
+        }
+      }
+    }
+    // ビンゴを終了確認ダイアログ
+    else if(substr($event->getText(), 4) == 'end_confirm') {
+      if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+        replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+      } else {
+        if(getHostOfRoom(getRoomIdOfUser($event->getUserId())) != $event->getUserId()) {
+          replyTextMessage($bot, $event->getReplyToken(), '終了ができるのはゲームを開始したユーザーのみです。');
+        } else {
+          replyConfirmTemplate($bot, $event->getReplyToken(), '本当に終了しますか？データは全て失われます。', '本当に終了しますか？データは全て失われます。',
+            new LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder('はい', 'cmd_end'),
+            new LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder('いいえ', 'cancel'));
+        }
+      }
+    }
+    // 終了
+    else if(substr($event->getText(), 4) == 'end') {
+      endBingo($bot, $event->getUserId());
+    }
+    continue;
   }
 
+  // リッチコンテンツ以外の時(ルームIDが入力された時)
+  if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+    // 入室
+    $roomId = enterRoomAndGetRoomId($event->getUserId(), $event->getText());
+    // 成功時
+    if($roomId !== PDO::PARAM_NULL) {
+      replyTextMessage($bot, $event->getReplyToken(), "ルームID" . $roomId . "に入室しました。");
+    }
+    // 失敗時
+    else {
+      replyTextMessage($bot, $event->getReplyToken(), "そのルームIDは存在しません。");
+    }
+  }
+}
 
-  // ユーザーIDからルームIDを取得
+// ユーザーIDからルームIDを取得
 function getRoomIdOfUser($userId) {
   $dbh = dbConnection::getConnection();
   $sql = 'select roomid from ' . TABLE_NAME_SHEETS . ' where ? = pgp_sym_decrypt(userid, \'' . getenv('DB_ENCRYPT_PASS') . '\')';
@@ -179,6 +175,7 @@ function createRoomAndGetRoomId($userId) {
 
   return $roomId;
 }
+
 // 入室しルームIDを返す
 function enterRoomAndGetRoomId($userId, $roomId) {
   $dbh = dbConnection::getConnection();
@@ -392,7 +389,6 @@ function endBingo($bot, $userId) {
   $sthDeleteRoom = $dbh->prepare($sqlDeleteRoom);
   $sthDeleteRoom->execute(array($roomId));
 }
-
 
 // テキストを返信。引数はLINEBot、返信先、テキスト
 function replyTextMessage($bot, $replyToken, $text) {

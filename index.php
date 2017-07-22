@@ -271,7 +271,7 @@ function pushSheetToUser($bot, $userId, $text) {
     if(getIsUserHasBingo($row["userid"])) {
       // スタンプとテキストを追加
       $builder->add(new \LINE\LINEBot\MessageBuilder\StickerMessageBuilder(1, 134));
-      $builder->add(new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('ビンゴだよ！名乗り出て景品をもらってね！'));
+      $builder->add(new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('ビンゴだよ！おめでとう～！名乗り出て景品をもらってね！'));
     }
     $bot->pushMessage($row['userid'], $builder);
   }

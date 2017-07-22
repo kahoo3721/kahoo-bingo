@@ -4,6 +4,7 @@
 require_once __DIR__ . '/vendor/autoload.php';
 //テーブル名定義
 define('TABLE_NAME_SHEETS', 'sheets');
+define('TABLE_NAME_ROOMS', 'rooms');
 
 // アクセストークンを使いCurlHTTPClientをインスタンス化
 $httpClient = new \LINE\LINEBot\HTTPClient\CurlHTTPClient(getenv('CHANNEL_ACCESS_TOKEN'));
@@ -97,6 +98,23 @@ foreach ($events as $event) {
       prepareSheets($bot, $event->getUserId());
     }
   }
+
+  // ビンゴのボールを一個引く
+ else if(substr($event->getText(), 4) == 'proceed') {
+   if(getRoomIdOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+     replyTextMessage($bot, $event->getReplyToken(), 'ルームに入っていません。');
+   } else if(getSheetOfUser($event->getUserId()) === PDO::PARAM_NULL) {
+     replyTextMessage($bot, $event->getReplyToken(), 'シートが配布されていません。まずビンゴ開始を押してください。');
+   } else {
+     // ユーザーがそのルームでビンゴを開始したユーザーでない場合
+     if(getHostOfRoom(getRoomIdOfUser($event->getUserId())) != $event->getUserId()) {
+       replyTextMessage($bot, $event->getReplyToken(), '進行ができるのはゲームを開始したユーザーのみです。');
+     } else {
+       // ボールを引く
+       proceedBingo($bot, $event->getUserId());
+     }
+   }
+ }
 
       continue;
 
@@ -245,6 +263,65 @@ function pushSheetToUser($bot, $userId, $text) {
     $bot->pushMessage($row['userid'], $builder);
   }
 }
+
+// ビンゴを開始したユーザーのユーザーIDを取得
+function getHostOfRoom($roomId) {
+  $dbh = dbConnection::getConnection();
+  $sql = 'select pgp_sym_decrypt(userid, \'' . getenv('DB_ENCRYPT_PASS') . '\') as userid from ' . TABLE_NAME_ROOMS . ' where roomid = ?';
+  $sth = $dbh->prepare($sql);
+  $sth->execute(array($roomId));
+  if (!($row = $sth->fetch())) {
+    return PDO::PARAM_NULL;
+  } else {
+    return $row['userid'];
+  }
+}
+
+// ボールを引く
+function proceedBingo($bot, $userId) {
+  $roomId = getRoomIdOfUser($userId);
+
+  $dbh = dbConnection::getConnection();
+  $sql = 'select balls from ' . TABLE_NAME_ROOMS . ' where roomid = ?';
+  $sth = $dbh->prepare($sql);
+  $sth->execute(array($roomId));
+  if ($row = $sth->fetch()) {
+    $ballArray = json_decode($row['balls']);
+    // ボールが全て引かれている時
+    if(count($ballArray) == 75) {
+      $bot->pushMessage($userId, new \LINE\LINEBot\MessageBuilder\TextMessageBuilder('もうボールはありません。'));
+      return;
+    }
+    // 重複しないボールが出るまで引く
+    $newBall = 0;
+    do {
+      $newBall = rand(1, 75);
+    } while(in_array($newBall, $ballArray));
+    array_push($ballArray, $newBall);
+
+    // ルームのボール情報をアップデート
+    $sqlUpdateBall = 'update ' . TABLE_NAME_ROOMS . ' set balls = ? where roomid = ?';
+    $sthUpdateBall = $dbh->prepare($sqlUpdateBall);
+    $sthUpdateBall->execute(array(json_encode($ballArray), $roomId));
+
+    // 全てのユーザーに送信
+    pushSheetToUser($bot, $userId, $newBall);
+  }
+}
+
+// ルームのボール情報を取得
+function getBallsOfRoom($roomId) {
+  $dbh = dbConnection::getConnection();
+  $sql = 'select balls from ' . TABLE_NAME_ROOMS . ' where roomid = ?';
+  $sth = $dbh->prepare($sql);
+  $sth->execute(array($roomId));
+  if (!($row = $sth->fetch())) {
+    return PDO::PARAM_NULL;
+  } else {
+    return json_decode($row['balls']);
+  }
+}
+
 
 
 // テキストを返信。引数はLINEBot、返信先、テキスト
